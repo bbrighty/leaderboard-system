@@ -11,15 +11,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
+
+
 type LeaderboardHandler struct {
 	leaderboardService *service.LeaderboardService
-	authMiddleware     *middleware.AuthMiddleware
 }
 
-func NewLeaderboardHandler(leaderboardService *service.LeaderboardService, authMiddleware *middleware.AuthMiddleware) *LeaderboardHandler {
+func NewLeaderboardHandler(leaderboardService *service.LeaderboardService) *LeaderboardHandler {
 	return &LeaderboardHandler{
 		leaderboardService: leaderboardService,
-		authMiddleware:     authMiddleware,
 	}
 }
 

@@ -135,3 +135,8 @@ func (r *LeaderboardRepository) GetUserScoreInGame(userID, gameID int64) (int64,
 	
 	return int64(score), nil
 }
+
+func (r *LeaderboardRepository) DeleteGameKey(gameID int64) error {
+	key := r.getGameKey(gameID)
+	return r.redis.Client.Del(r.redis.Ctx, key).Err()
+}

@@ -7,11 +7,12 @@ import (
 )
 
 type GameService struct {
-	gameRepo *repository.GameRepository
+	gameRepo        *repository.GameRepository
+	leaderboardRepo *repository.LeaderboardRepository
 }
 
-func NewGameService(gameRepo *repository.GameRepository) *GameService {
-	return &GameService{gameRepo: gameRepo}
+func NewGameService(gameRepo *repository.GameRepository, leaderboardRepo *repository.LeaderboardRepository) *GameService {
+	return &GameService{gameRepo: gameRepo, leaderboardRepo: leaderboardRepo}
 }
 
 type CreateGameRequest struct {
@@ -45,5 +46,9 @@ func (s *GameService) GetAllGames() ([]models.Game, error) {
 }
 
 func (s *GameService) DeleteGame(id int64) error {
-	return s.gameRepo.Delete(id)
+	if err := s.gameRepo.Delete(id); err != nil {
+		return err
+	}
+	s.leaderboardRepo.DeleteGameKey(id)
+	return nil
 }

@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"leaderboard-system/internal/config"
 	"leaderboard-system/internal/database"
@@ -41,14 +46,14 @@ func main() {
 	leaderboardRepo := repository.NewLeaderboardRepository(redis)
 
 	authService := service.NewAuthService(userRepo, cfg)
-	gameService := service.NewGameService(gameRepo)
+	gameService := service.NewGameService(gameRepo, leaderboardRepo)
 	leaderboardService := service.NewLeaderboardService(leaderboardRepo, scoreRepo, gameRepo, userRepo)
 
 	authMiddleware := middleware.NewAuthMiddleware(cfg)
 
 	authHandler := handler.NewAuthHandler(authService)
 	gameHandler := handler.NewGameHandler(gameService)
-	leaderboardHandler := handler.NewLeaderboardHandler(leaderboardService, authMiddleware)
+	leaderboardHandler := handler.NewLeaderboardHandler(leaderboardService)
 
 	router := mux.NewRouter()
 
@@ -69,13 +74,37 @@ func main() {
 	router.HandleFunc("/api/stats/me", authMiddleware.RequireAuth(leaderboardHandler.GetUserStats)).Methods("GET")
 	router.HandleFunc("/api/reports/top-players", authMiddleware.RequireAdmin(leaderboardHandler.GetTopPlayersReport)).Methods("GET")
 
+	router.Use(middleware.Logging)
 	router.Use(corsMiddleware)
 
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
-	log.Printf("Server starting on %s", addr)
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
+
+	go func() {
+		log.Printf("Server starting on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+	log.Println("Server stopped")
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {

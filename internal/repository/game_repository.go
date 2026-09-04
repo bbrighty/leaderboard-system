@@ -42,7 +42,7 @@ func (r *GameRepository) GetAll() ([]models.Game, error) {
 	}
 	defer rows.Close()
 
-	var games []models.Game
+	games := make([]models.Game, 0)
 	for rows.Next() {
 		var game models.Game
 		if err := rows.Scan(&game.ID, &game.Name, &game.Description, &game.CreatedAt, &game.UpdatedAt); err != nil {

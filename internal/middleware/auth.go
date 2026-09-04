@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"leaderboard-system/internal/config"
 	"leaderboard-system/pkg/utils"
 	"net/http"
@@ -24,7 +25,7 @@ func (m *AuthMiddleware) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, err := m.validateToken(r)
 		if err != nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
@@ -37,12 +38,12 @@ func (m *AuthMiddleware) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, err := m.validateToken(r)
 		if err != nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
 		if claims.Role != "admin" {
-			http.Error(w, `{"error":"forbidden: admin access required"}`, http.StatusForbidden)
+			writeJSONError(w, http.StatusForbidden, "forbidden: admin access required")
 			return
 		}
 
@@ -74,4 +75,11 @@ func (m *AuthMiddleware) validateToken(r *http.Request) (*utils.Claims, error) {
 func GetUserFromContext(ctx context.Context) (*utils.Claims, bool) {
 	claims, ok := ctx.Value(UserContextKey).(*utils.Claims)
 	return claims, ok
+}
+
+func writeJSONError(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	resp, _ := json.Marshal(map[string]string{"error": message})
+	w.Write(resp)
 }

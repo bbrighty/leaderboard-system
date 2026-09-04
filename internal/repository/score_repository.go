@@ -32,7 +32,7 @@ func (r *ScoreRepository) GetUserScores(userID int64) ([]models.Score, error) {
 	}
 	defer rows.Close()
 
-	var scores []models.Score
+	scores := make([]models.Score, 0)
 	for rows.Next() {
 		var score models.Score
 		if err := rows.Scan(&score.ID, &score.UserID, &score.GameID, &score.Score, &score.CreatedAt); err != nil {
@@ -51,7 +51,7 @@ func (r *ScoreRepository) GetGameScores(gameID int64) ([]models.Score, error) {
 	}
 	defer rows.Close()
 
-	var scores []models.Score
+	scores := make([]models.Score, 0)
 	for rows.Next() {
 		var score models.Score
 		if err := rows.Scan(&score.ID, &score.UserID, &score.GameID, &score.Score, &score.CreatedAt); err != nil {
@@ -86,8 +86,9 @@ func (r *ScoreRepository) GetTopPlayersByPeriod(startDate, endDate time.Time, li
 	query := `
 		SELECT u.id, u.username, COALESCE(SUM(s.score), 0) as total_score
 		FROM users u
-		LEFT JOIN scores s ON u.id = s.user_id AND s.created_at BETWEEN $1 AND $2
+		INNER JOIN scores s ON u.id = s.user_id AND s.created_at BETWEEN $1 AND $2
 		GROUP BY u.id, u.username
+		HAVING SUM(s.score) > 0
 		ORDER BY total_score DESC
 		LIMIT $3
 	`
@@ -97,7 +98,7 @@ func (r *ScoreRepository) GetTopPlayersByPeriod(startDate, endDate time.Time, li
 	}
 	defer rows.Close()
 
-	var entries []models.GlobalLeaderboardEntry
+	entries := make([]models.GlobalLeaderboardEntry, 0)
 	rank := int64(1)
 	for rows.Next() {
 		var entry models.GlobalLeaderboardEntry

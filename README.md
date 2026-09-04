@@ -20,41 +20,43 @@ Real-time leaderboard service built with Go, Redis and PostgreSQL.
 - Top players reports by time period
 - User statistics
 
-## Quick Start
+## Quick Start (Docker — recommended)
 
 ### Prerequisites
 
-- PostgreSQL
-- Redis
+- Docker & Docker Compose
 - Go 1.23+
 
 ### Setup
 
 ```bash
+# 1. Start PostgreSQL and Redis
+docker-compose up -d
+
+# 2. Create .env file (edit if needed)
+cp .env.example .env
+
+# 3. Build and run
+make dev
+```
+
+Server runs on `http://localhost:8080`
+
+### Manual setup (without Docker)
+
+```bash
+# 1. Start PostgreSQL and Redis on your machine
+
+# 2. Create database and run migrations
 createdb leaderboard_system
 psql -d leaderboard_system -f migrations/001_init_schema.up.sql
 
+# 3. Create .env file
 cp .env.example .env
 # edit .env with your credentials
 
-go run cmd/api/main.go
-```
-
-Server runs on `localhost:8080`
-
-### Config
-
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=yourpassword
-DB_NAME=leaderboard_system
-
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-JWT_SECRET=your-secret-here
+# 4. Run
+make dev
 ```
 
 ## API Endpoints
@@ -88,9 +90,53 @@ GET  /api/stats/me                       - your stats (auth)
 GET /api/reports/top-players?start_date=2026-01-01&end_date=2026-12-31&limit=10 (admin)
 ```
 
-## Examples
+## Step-by-Step Usage Example
 
-### Register
+### 1. Register an admin user
+
+```bash
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "email": "admin@example.com",
+    "password": "admin123"
+  }'
+```
+
+Response will contain a `token` — save it. Then manually update the user role in the database:
+
+```bash
+psql -d leaderboard_system -c "UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';"
+```
+
+### 2. Login and get a fresh token
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "admin123"
+  }'
+```
+
+Save the `token` from the response as `ADMIN_TOKEN`.
+
+### 3. Create a game
+
+```bash
+curl -X POST http://localhost:8080/api/games \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "name": "Chess",
+    "description": "Classic chess game"
+  }'
+```
+
+### 4. Register a regular player
+
 ```bash
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
@@ -101,20 +147,74 @@ curl -X POST http://localhost:8080/api/auth/register \
   }'
 ```
 
-### Submit Score
+Save the `token` as `PLAYER_TOKEN`.
+
+### 5. Submit scores
+
 ```bash
 curl -X POST http://localhost:8080/api/scores \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer $PLAYER_TOKEN" \
   -d '{
     "game_id": 1,
     "score": 1500
   }'
 ```
 
-### Get Global Leaderboard
+### 6. Check the leaderboard
+
 ```bash
+# Global leaderboard
 curl http://localhost:8080/api/leaderboard/global?limit=10
+
+# Game-specific leaderboard
+curl http://localhost:8080/api/leaderboard/game/1?limit=10
+
+# Your rank in a game
+curl http://localhost:8080/api/leaderboard/game/1/rank \
+  -H "Authorization: Bearer $PLAYER_TOKEN"
+
+# Your global rank
+curl http://localhost:8080/api/leaderboard/rank \
+  -H "Authorization: Bearer $PLAYER_TOKEN"
+
+# Your stats
+curl http://localhost:8080/api/stats/me \
+  -H "Authorization: Bearer $PLAYER_TOKEN"
+```
+
+### 7. Top players report (admin)
+
+```bash
+curl "http://localhost:8080/api/reports/top-players?start_date=2026-01-01&end_date=2026-12-31&limit=10" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+## Config
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=leaderboard_system
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+JWT_SECRET=your-secret-here
+```
+
+## Makefile Commands
+
+```bash
+make build       # Build binary
+make run         # Build and run
+make dev         # Run without building (go run)
+make test        # Run tests
+make docker-up   # Start PostgreSQL + Redis
+make docker-down # Stop PostgreSQL + Redis
+make tidy        # go mod tidy
 ```
 
 ## Architecture
@@ -126,7 +226,7 @@ internal/
   ├── service/        - business logic
   ├── repository/     - data access (DB + Redis)
   ├── models/         - domain models
-  ├── middleware/     - auth middleware
+  ├── middleware/     - auth + logging middleware
   ├── config/         - configuration
   ├── database/       - PostgreSQL connection
   └── redis/          - Redis connection
@@ -160,8 +260,10 @@ This hybrid approach gives:
 ## Notes
 
 - Leaderboards limited to 100 entries per request
-- Scores must be non-negative
-- User stats calculated from PostgreSQL (not real-time cached yet)
+- Scores must be non-negative (enforced at DB and app level)
+- User stats calculated from PostgreSQL
+- Graceful shutdown on SIGINT/SIGTERM
+- Request logging on all endpoints
 
 ## License
 
