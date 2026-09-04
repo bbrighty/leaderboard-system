@@ -66,6 +66,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid JWT_EXPIRY: %w", err)
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required and must not be empty")
+	}
+
 	return &Config{
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -86,7 +91,7 @@ func Load() (*Config, error) {
 			Host: getEnv("SERVER_HOST", "localhost"),
 		},
 		JWT: JWTConfig{
-			Secret: getEnv("JWT_SECRET", ""),
+			Secret: jwtSecret,
 			Expiry: jwtExpiry,
 		},
 		Env: getEnv("ENV", "development"),
