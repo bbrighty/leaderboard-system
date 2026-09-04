@@ -12,6 +12,29 @@ docker compose up --build
 
 Server runs on `http://localhost:8080`.
 
+## Example
+
+```bash
+# Register
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"player1","email":"p1@test.com","password":"pass123"}'
+
+# Login — returns a token
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"p1@test.com","password":"pass123"}'
+
+# Submit score (use the token from login)
+curl -X POST http://localhost:8080/api/scores \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"game_id":1,"score":1500}'
+
+# Global leaderboard
+curl "http://localhost:8080/api/leaderboard/global?limit=10"
+```
+
 ## API
 
 | Method | Endpoint | Description |
